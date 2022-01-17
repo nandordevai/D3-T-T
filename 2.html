@@ -13,8 +13,69 @@
 
         .line {
             fill: none;
+            stroke-width: 2px;
+            stroke-dasharray: 3, 3;
+        }
+
+        .line-close {
+            stroke: hsla(220, 55%, 50%, 1);
+        }
+
+        .line-open {
+            stroke: hsla(0, 55%, 50%, 1);
+        }
+
+        .area {
+            fill: hsla(200, 25%, 85%, 1);
+        }
+
+        .axis-label {
+            text-anchor: middle;
+            font-family: sans-serif;
+            font-size: 12px;
+        }
+
+        .line-label {
+            text-anchor: start;
+            font-family: sans-serif;
+            font-size: 12px;
+            dominant-baseline: middle;
+        }
+
+        .label-close {
+            fill: hsla(220, 55%, 50%, 1);
+        }
+
+        .label-open {
+            fill: hsla(0, 55%, 50%, 1);
+        }
+
+        .title {
+            text-anchor: middle;
+            font-family: sans-serif;
+            font-size: 16px;
+        }
+
+        .grid line {
+            stroke: hsla(0, 0%, 90%, 1);
+            stroke-opacity: 0.7;
+            shape-rendering: crispEdges;
+        }
+
+        .grid path {
+            stroke-width: 0;
+        }
+
+        .close-dot {
             stroke: hsla(220, 55%, 50%, 1);
             stroke-width: 2px;
+            fill: hsla(220, 55%, 50%, 1);
+        }
+
+        .open-dot {
+            stroke: hsla(0, 55%, 50%, 1);
+            stroke-width: 2px;
+            fill: none;
         }
     </style>
 </head>
@@ -24,43 +85,132 @@
     <script>
         const width = 800;
         const height = 600;
-        const margin = 40;
+        const margin = 70;
+        const xTicks = d3.timeDay.filter(d => d3.timeDay.count(0, d) % 7 === 4);
         const xScale = d3.scaleTime()
             .range([0, width]);
         const yScale = d3.scaleLinear()
             .range([height, 0]);
         const xAxis = d3.axisBottom()
-            .scale(xScale);
+            .scale(xScale)
+            .ticks(xTicks)
+            .tickFormat(d3.timeFormat('%b %d.'));
         const yAxis = d3.axisLeft()
             .scale(yScale);
+
+        function xGridlines() {
+            return d3.axisBottom(xScale).ticks(xTicks);
+        };
+
+        function yGridlines() {
+            return d3.axisLeft(yScale).ticks(10);
+        }
+
+        const area = d3.area()
+            .x(_ => xScale(_.date))
+            .y0(height)
+            .y1(_ => yScale(_.close))
+            .curve(d3.curveCardinal);
+
         const container = d3.select('body')
             .append('svg')
             .attr('width', width + margin * 2)
             .attr('height', height + margin * 2);
-        const chart = d3.select('svg')
+        const chart = container
             .append('g')
             .attr('width', width)
             .attr('height', height)
             .attr('transform', `translate(${margin}, ${margin})`);
 
-        d3.csv('data.csv').then((source) => {
+        chart.append('text')
+            .attr('x', width / 2)
+            .attr('y', height + margin - 10)
+            .attr('class', 'axis-label')
+            .text('Date');
+
+        chart.append('text')
+            .attr('transform', `translate(${width / 2}, -40)`)
+            .attr('class', 'title')
+            .text('Close value vs Date');
+
+        d3.csv('data2.csv').then((source) => {
             const data = source.map(_ => ({
                 date: d3.timeParse('%d-%b-%y')(_.date),
                 close: +_.close,
+                open: +_.open,
             }));
             xScale.domain(d3.extent(data, _ => _.date));
-            yScale.domain([0, d3.max(data, _ => _.close)]);
-            chart.append('g')
-                .attr('transform', `translate(0, ${height})`)
-                .call(xAxis);
-            chart.append('g')
-                .call(yAxis);
+            yScale.domain([0, d3.max(data, _ => Math.max(_.open, _.close))]);
+
             chart.append('path')
                 .data([data])
-                .attr('class', 'line')
+                .attr('class', 'area')
+                .attr('d', area);
+
+            chart.append('g')
+                .attr('class', 'grid')
+                .attr('transform', `translate(0, ${height})`)
+                .call(xGridlines()
+                    .tickSize(-height)
+                    .tickFormat(''));
+
+            chart.append('g')
+                .attr('class', 'grid')
+                .attr('transform', `translate(${width}, 0)`)
+                .call(yGridlines()
+                    .tickSize(width)
+                    .tickFormat(''));
+
+            chart.append('g')
+                .attr('transform', `translate(0, ${height})`)
+                .call(xAxis)
+                .selectAll('text')
+                .style('text-anchor', 'end')
+                .attr('transform', 'translate(0, 5), rotate(-45)');
+            chart.append('g')
+                .call(yAxis);
+
+            chart.append('path')
+                .data([data])
+                .attr('class', 'line line-close')
                 .attr('d', d3.line()
+                    .curve(d3.curveCardinal)
                     .x(_ => xScale(_.date))
                     .y(_ => yScale(_.close)));
+
+            chart.append('path')
+                .data([data])
+                .attr('class', 'line line-open')
+                .attr('d', d3.line()
+                    .curve(d3.curveCardinal)
+                    .x(_ => xScale(_.date))
+                    .y(_ => yScale(_.open)));
+
+            chart.selectAll('dot')
+                .data(data)
+                .enter().append('circle')
+                .attr('r', 5)
+                .attr('class', 'close-dot')
+                .attr('cx', _ => xScale(_.date))
+                .attr('cy', _ => yScale(_.close));
+
+            chart.selectAll('dot')
+                .data(data)
+                .enter().append('circle')
+                .attr('r', 5)
+                .attr('class', 'open-dot')
+                .attr('cx', _ => xScale(_.date))
+                .attr('cy', _ => yScale(_.open));
+
+            chart.append('text')
+                .text('Close')
+                .attr('transform', `translate(${width + 10}, ${yScale(data[0].close)})`)
+                .attr('class', 'line-label label-close');
+
+            chart.append('text')
+                .text('Open')
+                .attr('transform', `translate(${width + 10}, ${yScale(data[0].open)})`)
+                .attr('class', 'line-label label-open');
         });
     </script>
 </body>
