@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title></title>
+    <style>
+        body {
+            margin: 100px;
+        }
+
+        .line {
+            fill: none;
+            stroke-width: 2px;
+            /* stroke-dasharray: 3, 3; */
+        }
+
+        .line-close {
+            stroke: hsla(220, 55%, 50%, 1);
+        }
+
+        .line-open {
+            stroke: hsla(0, 55%, 50%, 1);
+        }
+
+        .area {
+            fill: hsla(200, 25%, 85%, 1);
+        }
+
+        .axis-label {
+            text-anchor: middle;
+            font-family: sans-serif;
+            font-size: 12px;
+        }
+
+        .line-label {
+            text-anchor: start;
+            font-family: sans-serif;
+            font-size: 12px;
+            dominant-baseline: middle;
+        }
+
+        .label-close {
+            fill: hsla(220, 55%, 50%, 1);
+        }
+
+        .label-open {
+            fill: hsla(0, 55%, 50%, 1);
+        }
+
+        .title {
+            text-anchor: middle;
+            font-family: sans-serif;
+            font-size: 16px;
+        }
+
+        .grid line {
+            stroke: hsla(0, 0%, 90%, 1);
+            stroke-opacity: 0.7;
+            shape-rendering: crispEdges;
+        }
+
+        .grid path {
+            stroke-width: 0;
+        }
+
+        .close-dot {
+            stroke: hsla(220, 55%, 50%, 1);
+            stroke-width: 2px;
+            fill: hsla(220, 55%, 50%, 1);
+        }
+
+        .open-dot {
+            stroke: hsla(0, 55%, 50%, 1);
+            stroke-width: 2px;
+            fill: none;
+        }
+    </style>
+</head>
+
+<body>
+    <script src="https://d3js.org/d3.v5.min.js"></script>
+    <script>
+        const width = 800;
+        const height = 600;
+        const margin = 70;
+        const xTicks = d3.timeDay.filter(d => d3.timeDay.count(0, d) % 7 === 4);
+        const xScale = d3.scaleTime()
+            .range([0, width]);
+        const yOpenScale = d3.scaleLinear()
+            .range([height, 0]);
+        const yCloseScale = d3.scaleLinear()
+            .range([height, 0]);
+        const xAxis = d3.axisBottom()
+            .scale(xScale)
+            .ticks(xTicks)
+            .tickFormat(d3.timeFormat('%b %d.'));
+
+        const yOpenAxis = d3.axisLeft()
+            .scale(yOpenScale);
+        const yCloseAxis = d3.axisRight()
+            .scale(yCloseScale);
+
+        function xGridlines() {
+            return d3.axisBottom(xScale).ticks(xTicks);
+        };
+
+        function yGridlines() {
+            return d3.axisLeft(yOpenScale).ticks(10);
+        }
+
+        const container = d3.select('body')
+            .append('svg')
+            .attr('width', width + margin * 2)
+            .attr('height', height + margin * 2);
+        const chart = container
+            .append('g')
+            .attr('width', width)
+            .attr('height', height)
+            .attr('transform', `translate(${margin}, ${margin})`);
+
+        chart.append('text')
+            .attr('x', width / 2)
+            .attr('y', height + margin - 10)
+            .attr('class', 'axis-label')
+            .text('Date');
+
+        chart.append('text')
+            .attr('transform', `translate(${width / 2}, -40)`)
+            .attr('class', 'title')
+            .text('Close value vs Date');
+
+        d3.csv('data3.csv').then((source) => {
+            const data = source.map(_ => ({
+                date: d3.timeParse('%d-%b-%y')(_.date),
+                close: +_.close,
+                open: +_.open,
+            }));
+            xScale.domain(d3.extent(data, _ => _.date));
+            // yOpenScale.domain([0, d3.max(data, _ => Math.max(_.open, _.close))]);
+            yOpenScale.domain([0, d3.max(data, _ => _.open)]);
+            yCloseScale.domain([0, d3.max(data, _ => _.close)]);
+
+            chart.append('g')
+                .attr('transform', `translate(0, ${height})`)
+                .call(xAxis)
+                .selectAll('text')
+                .style('text-anchor', 'end')
+                .attr('transform', 'translate(0, 5), rotate(-45)');
+
+            chart.append('g')
+                .call(yOpenAxis);
+
+            chart.append('g')
+                .attr('transform', `translate(${width}, 0)`)
+                .call(yCloseAxis);
+
+            chart.append('path')
+                .data([data])
+                .attr('class', 'line line-close')
+                .attr('d', d3.line()
+                    .x(_ => xScale(_.date))
+                    .y(_ => yCloseScale(_.close)));
+
+            chart.append('path')
+                .data([data])
+                .attr('class', 'line line-open')
+                .attr('d', d3.line()
+                    .x(_ => xScale(_.date))
+                    .y(_ => yOpenScale(_.open)));
+        });
+    </script>
+</body>
+
+</html>
